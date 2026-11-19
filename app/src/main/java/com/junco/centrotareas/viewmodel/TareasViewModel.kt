@@ -7,16 +7,13 @@ import com.junco.centrotareas.data.TareasRepository
 import com.junco.centrotareas.model.CargaUi
 import com.junco.centrotareas.model.PrimosUi
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
 
@@ -47,17 +44,14 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
                 _mensaje.value = "Trabajando..."
                 Log.d("HILO", "Antes: ${Thread.currentThread().name}")
 
-                // El trabajo se hace en un hilo de fondo (Dispatchers.Default):
-                // 100 vueltas de 40 ms, en total unos 4 segundos
-                withContext(Dispatchers.Default) {
-                    Log.d("HILO", "Dentro: ${Thread.currentThread().name}")
-                    for (i in 1..100) {
-                        delay(40)
-                        _progreso.value = i / 100f
-                    }
+                // Ahora la tarea vive en el Repository y llega como un Flow.
+                // El Flow trabaja en Dispatchers.Default (flowOn) y aquí, en main,
+                // solo recibo cada avance y actualizo el progreso
+                repo.tareaConProgreso().collect { avance ->
+                    _progreso.value = avance
                 }
 
-                // Al salir de withContext volvemos al hilo principal
+                // Cuando el Flow termina seguimos en el hilo principal
                 Log.d("HILO", "Despues: ${Thread.currentThread().name}")
                 _mensaje.value = "Terminó"
             } finally {

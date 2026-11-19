@@ -1,12 +1,26 @@
 package com.junco.centrotareas.data
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
 class TareasRepositoryLocal : TareasRepository {
+
+    // Tarea simulada: 100 vueltas de 40 ms (unos 4 s) y en cada vuelta emite el avance.
+    // flowOn hace que este bloque corra en Dispatchers.Default; quien recolecta sigue en main
+    override fun tareaConProgreso(): Flow<Float> = flow {
+        Log.d("HILO", "Dentro: ${Thread.currentThread().name}")
+        for (i in 1..100) {
+            delay(40)
+            emit(i / 100f)
+        }
+    }.flowOn(Dispatchers.Default)
 
     // Carga simulada: tarda 2 segundos
     override suspend fun cargarPerfil(): String {
