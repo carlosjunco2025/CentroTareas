@@ -62,8 +62,8 @@ fun PantallaTareas(vm: TareasViewModel) {
                 }
 
                 // TODO Pasos 2 a 4: botones Iniciar / Cancelar y barra de progreso
-                Button(onClick = { vm.tareaLargaMala() }) {
-                    Text("Tarea larga (MAL)")
+                Button(onClick = { vm.tareaLarga() }) {
+                    Text("Tarea larga")
                 }
                 Text(mensaje)
             }
