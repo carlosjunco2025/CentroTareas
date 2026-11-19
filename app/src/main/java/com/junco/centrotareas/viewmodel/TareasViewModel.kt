@@ -3,6 +3,7 @@ package com.junco.centrotareas.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.junco.centrotareas.data.HistorialRepository
 import com.junco.centrotareas.data.TareasRepository
 import com.junco.centrotareas.model.CargaUi
 import com.junco.centrotareas.model.PrimosUi
@@ -12,12 +13,27 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
-class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
+class TareasViewModel(
+    private val repo: TareasRepository,
+    private val historialRepo: HistorialRepository
+) : ViewModel() {
+
+    // ----- Historial (DataStore): los últimos 5 resultados, se ven apenas se abre la app
+    val historial: StateFlow<List<String>> = historialRepo.historial
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun borrarHistorial() {
+        viewModelScope.launch {
+            historialRepo.borrar()
+        }
+    }
 
     // ----- Tarea con progreso (pasos 1 a 4)
     private val _mensaje = MutableStateFlow("Listo")
@@ -88,6 +104,7 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
                 val cantidad = repo.contarPrimos(hasta)
                 val milisegundos = System.currentTimeMillis() - inicio
                 _primos.value = PrimosUi.Listo(cantidad, milisegundos)
+                historialRepo.agregar("Primos hasta $hasta: $cantidad ($milisegundos ms)")
             } catch (e: CancellationException) {
                 _primos.value = PrimosUi.Cancelado
                 // Se vuelve a lanzar para que la cancelación siga funcionando
@@ -146,6 +163,7 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
                 }
                 val milisegundos = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("Una por una", perfil, pedidos.size, milisegundos)
+                historialRepo.agregar("Carga una por una: ${pedidos.size} pedidos ($milisegundos ms)")
             } catch (e: TimeoutCancellationException) {
                 // Se acabó el tiempo máximo: no es una cancelación del usuario, se muestra como error
                 _carga.value = CargaUi.Error("Tardó demasiado (más de 2 s)")
@@ -175,6 +193,7 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
                 }
                 val milisegundos = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("A la vez", perfil, pedidos.size, milisegundos)
+                historialRepo.agregar("Carga a la vez: ${pedidos.size} pedidos ($milisegundos ms)")
             } catch (e: TimeoutCancellationException) {
                 _carga.value = CargaUi.Error("Tardó demasiado (más de 2 s)")
             } catch (e: Exception) {

@@ -56,6 +56,7 @@ fun PantallaTareas(vm: TareasViewModel) {
     val carga by vm.carga.collectAsState()
     val simularError by vm.simularError.collectAsState()
     val limiteTiempo by vm.limiteTiempo.collectAsState()
+    val historial by vm.historial.collectAsState()
 
     // Texto del campo numérico de los primos
     var textoHasta by rememberSaveable { mutableStateOf("500000") }
@@ -225,6 +226,20 @@ fun PantallaTareas(vm: TareasViewModel) {
                         mensaje = c.mensaje,
                         onReintentar = { vm.cargarALaVez() }
                     )
+                }
+            }
+
+            // Historial guardado con DataStore: sigue ahí aunque se cierre la app
+            TarjetaTarea(titulo = "Últimos resultados") {
+                if (historial.isEmpty()) {
+                    Text("Todavía no hay resultados guardados")
+                } else {
+                    historial.forEach { resultado ->
+                        Text("• $resultado")
+                    }
+                    OutlinedButton(onClick = { vm.borrarHistorial() }) {
+                        Text("Borrar historial")
+                    }
                 }
             }
         }
