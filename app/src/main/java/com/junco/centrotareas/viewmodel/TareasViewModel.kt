@@ -8,12 +8,14 @@ import com.junco.centrotareas.model.CargaUi
 import com.junco.centrotareas.model.PrimosUi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
 
@@ -110,6 +112,24 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
         _simularError.value = valor
     }
 
+    // Interruptor del tiempo máximo: si está activo, las cargas tienen solo 2 s para terminar
+    private val _limiteTiempo = MutableStateFlow(false)
+    val limiteTiempo: StateFlow<Boolean> = _limiteTiempo.asStateFlow()
+
+    fun cambiarLimiteTiempo(valor: Boolean) {
+        _limiteTiempo.value = valor
+    }
+
+    // Ejecuta el bloque con withTimeout(2000) solo si el interruptor está activo.
+    // Si se pasa del tiempo, withTimeout cancela el bloque y lanza TimeoutCancellationException
+    private suspend fun <T> conTiempoMaximo(bloque: suspend () -> T): T {
+        return if (_limiteTiempo.value) {
+            withTimeout(2000) { bloque() }
+        } else {
+            bloque()
+        }
+    }
+
     // Carga una por una: primero el perfil (2 s) y después los pedidos (3 s) = unos 5 s
     fun cargarUnaPorUna() {
         // Si ya está cargando no lanzo otra carga
@@ -119,10 +139,16 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 val inicio = System.currentTimeMillis()
-                val perfil = repo.cargarPerfil()
-                val pedidos = repo.cargarPedidos(_simularError.value)
+                val (perfil, pedidos) = conTiempoMaximo {
+                    val perfil = repo.cargarPerfil()
+                    val pedidos = repo.cargarPedidos(_simularError.value)
+                    Pair(perfil, pedidos)
+                }
                 val milisegundos = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("Una por una", perfil, pedidos.size, milisegundos)
+            } catch (e: TimeoutCancellationException) {
+                // Se acabó el tiempo máximo: no es una cancelación del usuario, se muestra como error
+                _carga.value = CargaUi.Error("Tardó demasiado (más de 2 s)")
             } catch (e: Exception) {
                 // La cancelación no es un error: se deja pasar
                 if (e is CancellationException) throw e
@@ -139,14 +165,18 @@ class TareasViewModel(private val repo: TareasRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 val inicio = System.currentTimeMillis()
-                val (perfil, pedidos) = coroutineScope {
-                    val perfilAsync = async { repo.cargarPerfil() }
-                    val pedidosAsync = async { repo.cargarPedidos(_simularError.value) }
-                    // await espera a que cada una termine
-                    Pair(perfilAsync.await(), pedidosAsync.await())
+                val (perfil, pedidos) = conTiempoMaximo {
+                    coroutineScope {
+                        val perfilAsync = async { repo.cargarPerfil() }
+                        val pedidosAsync = async { repo.cargarPedidos(_simularError.value) }
+                        // await espera a que cada una termine
+                        Pair(perfilAsync.await(), pedidosAsync.await())
+                    }
                 }
                 val milisegundos = System.currentTimeMillis() - inicio
                 _carga.value = CargaUi.Exito("A la vez", perfil, pedidos.size, milisegundos)
+            } catch (e: TimeoutCancellationException) {
+                _carga.value = CargaUi.Error("Tardó demasiado (más de 2 s)")
             } catch (e: Exception) {
                 // La cancelación no es un error: se deja pasar
                 if (e is CancellationException) throw e

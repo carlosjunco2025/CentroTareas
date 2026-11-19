@@ -55,6 +55,7 @@ fun PantallaTareas(vm: TareasViewModel) {
     val primos by vm.primos.collectAsState()
     val carga by vm.carga.collectAsState()
     val simularError by vm.simularError.collectAsState()
+    val limiteTiempo by vm.limiteTiempo.collectAsState()
 
     // Texto del campo numérico de los primos
     var textoHasta by rememberSaveable { mutableStateOf("500000") }
@@ -178,6 +179,20 @@ fun PantallaTareas(vm: TareasViewModel) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Simular error")
+                }
+
+                // Interruptor del tiempo máximo de 2 segundos (withTimeout)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(
+                        checked = limiteTiempo,
+                        onCheckedChange = { vm.cambiarLimiteTiempo(it) },
+                        enabled = !cargando
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Tiempo máximo de 2 s")
                 }
 
                 // Mientras carga, los dos botones se deshabilitan
